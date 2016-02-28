@@ -278,7 +278,7 @@ void tinyDecrypt ( const unsigned int * crypt, const unsigned int * key, unsigne
 
 char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned char key[16], uint32 * plain_len)
 {
-    if(crypt == NULL || plain == NULL)
+    if(crypt == NULL || plain_len == NULL)
         return NULL;
     const uint32 *tkey   = (const uint32 *)key;
     const uint32 *tcrypt = (const uint32 *)crypt;
@@ -318,7 +318,7 @@ char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned ch
 
     padLength = *((unsigned char *)tplain) & 0x07;
 
-    length = (length / 4 + 1)*4 - (padLength+3);    
+    length = (length / 4 + 1)*4 - (padLength+3);
     memcpy(tplain,(byte*)tplain+padLength+3,length);
 
     *plain_len = crypt_len - (padLength+3) -7;/*(pad 7 bytes 0x00 at the end)*/
@@ -522,7 +522,7 @@ ZEND_FUNCTION(xxtea_encrypt) {
         memcpy(fixed_key, key, 16);
     }
 
-    result = (char *)xxtea_ubyte_encrypt((const uint8_t *)data, (size_t)data_len, fixed_key, &ret_length);
+    result = (char *)xxtea_ubyte_encrypt((const uint8_t *)data, (uint32)data_len, fixed_key, (uint32*)&ret_length);
     if (result == NULL) {
         RETURN_FALSE;
     }
@@ -557,7 +557,7 @@ ZEND_FUNCTION(ht_xxtea_decrypt) {
     char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned char key[16], uint32 * plain_len)
 
     */
-    result = (char *)xTEADecryptWithKey((const uint8_t *)data, (size_t)data_len, fixed_key, &ret_length);
+    result = (char *)xTEADecryptWithKey((const uint8_t *)data, (uint32)data_len, fixed_key, (uint32*)&ret_length);
     if (result == NULL) {
         RETURN_FALSE;
     }
