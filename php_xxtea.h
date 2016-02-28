@@ -29,14 +29,16 @@ extern zend_module_entry xxtea_module_entry;
 #define PHP_XXTEA_MODULE_NAME   "xxtea"
 #define PHP_XXTEA_BUILD_DATE    __DATE__ " " __TIME__
 #define PHP_XXTEA_VERSION       "1.0.11"
-#define PHP_XXTEA_AUTHOR        "Ma Bingyao"
-#define PHP_XXTEA_HOMEPAGE      "https://github.com/xxtea/xxtea-pecl"
+#define PHP_XXTEA_AUTHOR        "lien lee"
+#define PHP_XXTEA_HOMEPAGE      "https://github.com/lilien1010/xxtea-pecl"
 
 ZEND_MINIT_FUNCTION(xxtea);
 ZEND_MSHUTDOWN_FUNCTION(xxtea);
 ZEND_MINFO_FUNCTION(xxtea);
 
 /* declaration of functions to be exported */
+ZEND_FUNCTION(ht_xxtea_encrypt);
+ZEND_FUNCTION(ht_xxtea_decrypt);
 ZEND_FUNCTION(xxtea_encrypt);
 ZEND_FUNCTION(xxtea_decrypt);
 ZEND_FUNCTION(xxtea_info);
