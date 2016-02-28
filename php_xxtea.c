@@ -286,7 +286,7 @@ char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned ch
     if( crypt_len<1 || crypt_len%8 )
         return NULL;
 
-    int *tplain = (int * )emalloc(crypt_len/4+1);
+    int *tplain = (int * )emalloc(crypt_len+4);
 
     uint32  length = crypt_len;
     uint32 pre_plain[2] = {0,0};
@@ -353,7 +353,7 @@ char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned ch
 
 char * xTEAEncryptWithKey(const char *plain, uint32 plain_len, const unsigned char key[16], uint32 * crypt_len )
 {
-    if(plain == NULL || crypt == NULL)
+    if(plain == NULL || crypt_len == NULL)
         return NULL;
     const unsigned char pad[9] = {0xad,0xad,0xad,0xad,0xad,0xad,0xad,0xad,0xad};
 
@@ -380,7 +380,7 @@ char * xTEAEncryptWithKey(const char *plain, uint32 plain_len, const unsigned ch
     int length = padLength+3+plain_len+7;
     *crypt_len = length;
 
-    int *tcrypt = (int*)emalloc(length/4);
+    int *tcrypt = (int*)emalloc(length);
 
     *((unsigned char*)tcrypt) = 0xa8 | (unsigned char)padLength;
     memcpy ( (byte*)tcrypt+1, (byte*)pad, padLength+2);
@@ -397,7 +397,7 @@ char * xTEAEncryptWithKey(const char *plain, uint32 plain_len, const unsigned ch
         memcpy(pre_plain, p_buf, 8);
     }
 
-    return tcrypt;
+    return (char *) tcrypt;
 
 }
 
