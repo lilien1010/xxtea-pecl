@@ -598,8 +598,8 @@ ZEND_FUNCTION(xxtea_decrypt) {
 zend_class_entry *xxtea_ce;
 
 static zend_function_entry xxtea_method[] = {
-    ZEND_ME_MAPPING(encrypt, ht_xxtea_encrypt, ht_xxtea_encrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
-    ZEND_ME_MAPPING(decrypt, ht_xxtea_decrypt, ht_xxtea_decrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
+    ZEND_ME_MAPPING(ht_encrypt, ht_xxtea_encrypt, ht_xxtea_encrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
+    ZEND_ME_MAPPING(ht_decrypt, ht_xxtea_decrypt, ht_xxtea_decrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
     ZEND_ME_MAPPING(encrypt, xxtea_encrypt, xxtea_encrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
     ZEND_ME_MAPPING(decrypt, xxtea_decrypt, xxtea_decrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
     ZEND_FE_END
