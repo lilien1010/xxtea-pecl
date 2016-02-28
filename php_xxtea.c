@@ -228,6 +228,193 @@ static uint8_t * xxtea_ubyte_decrypt(const uint8_t * data, size_t len, const uin
     return out;
 }
 
+void tinyEncrypt ( const uint32 * plain, const uint32 * key, uint32 *crypt, unsigned int power)
+{
+    uint32 y,z,a,b,c,d;
+    uint32 sum = 0;
+    unsigned int i;
+    unsigned int rounds = 1<<power;
+
+    y = plain[0];
+    z = plain[1];
+    a = key[0];
+    b = key[1];
+    c = key[2];
+    d = key[3];
+
+    for (i = 0; i < rounds; i++) {
+        sum += TEA_DELTA;
+        y += ((z << 4) + a) ^ (z + sum) ^ ((z >> 5) + b);
+        z += ((y << 4) + c) ^ (y + sum) ^ ((y >> 5) + d);
+    }
+
+    crypt[0] = y;
+    crypt[1] = z;
+}
+
+void tinyDecrypt ( const unsigned int * crypt, const unsigned int * key, unsigned int *plain, unsigned int power)
+{
+    unsigned int y,z,a,b,c,d;
+    unsigned int rounds = 1<<power;
+    unsigned int sum = TEA_DELTA<<power;
+    unsigned int i;
+
+    y = crypt[0];
+    z = crypt[1];
+    a = key[0];
+    b = key[1];
+    c = key[2];
+    d = key[3];
+
+    for (i = 0; i < rounds; i++) {
+        z -= ((y << 4) + c) ^ (y + sum) ^ ((y >> 5) + d);
+        y -= ((z << 4) + a) ^ (z + sum) ^ ((z >> 5) + b);
+        sum -= TEA_DELTA;
+    }
+
+    plain[0] = y;
+    plain[1] = z;
+}
+
+char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned char key[16], uint32 * plain_len)
+{
+    if(crypt == NULL || plain == NULL)
+        return NULL;
+    const uint32 *tkey   = (const uint32 *)key;
+    const uint32 *tcrypt = (const uint32 *)crypt;
+
+    if( crypt_len<1 || crypt_len%8 )
+        return NULL;
+
+    int *tplain = (int * )emalloc(crypt_len/4+1);
+
+    uint32  length = crypt_len;
+    uint32 pre_plain[2] = {0,0};
+    uint32 p_buf[2] = {0};
+    uint32 c_buf[2] = {0};
+
+    int padLength = 0;
+    int i = 0;
+
+    tinyDecrypt(tcrypt, tkey, p_buf, 4);
+
+    memcpy(pre_plain, p_buf, 8);
+    memcpy(tplain, p_buf, 8);
+
+    for (i = 2; i < (int)length/4; i+=2) {
+        c_buf[0] = *(tcrypt+i) ^ pre_plain[0];
+        c_buf[1] = *(tcrypt+i+1) ^ pre_plain[1];
+        tinyDecrypt((const uint32 *)c_buf, tkey, p_buf, 4);
+        memcpy(pre_plain, p_buf, 8);
+        *(tplain+i) = p_buf[0] ^ *(tcrypt+i-2);
+        *(tplain+i+1) = p_buf[1] ^ *(tcrypt+i-1);
+    }
+
+    if ( tplain[length/4-1] || (tplain[length/4-2]&0xffffff00))
+    {
+        efree(tplain); tplain = NULL;
+        return NULL;
+    }
+
+    padLength = *((unsigned char *)tplain) & 0x07;
+
+    length = (length / 4 + 1)*4 - (padLength+3);    
+    memcpy(tplain,(byte*)tplain+padLength+3,length);
+
+    *plain_len = crypt_len - (padLength+3) -7;/*(pad 7 bytes 0x00 at the end)*/
+
+    /*memcpy(plain,tplain,*plain_len);
+
+
+    efree(tplain); tplain = NULL;
+    */
+    return tplain;
+
+}
+/*================================================================
+ *
+ * 函 数 名：xTEAEncryptWithKey
+ ** Encrypt the plain text to cipher text with the key
+
+ * 参 数：
+ *
+ * const unsigned long *plain [IN] : the plain text
+ * DWORD dwPlainLen[IN]: plain text length
+ * const unsigned long *theKey [IN] : the key
+ * DWORD dwKeyLen[IN]: key length
+ * unsigned long *crypt [[IN,OUT]] : the pointer to cipher text(net order byte)
+ * DWORD * pdwCryptLen[IN,OUT]: Valid cipher text length
+ *
+ * 返 回 值：BOOL-	SUCCESS:TRUE
+ *							Fail:NULL
+ *
+ *
+ ================================================================*/
+
+char * xTEAEncryptWithKey(const char *plain, uint32 plain_len, const unsigned char key[16], uint32 * crypt_len )
+{
+    if(plain == NULL || crypt == NULL)
+        return NULL;
+    const unsigned char pad[9] = {0xad,0xad,0xad,0xad,0xad,0xad,0xad,0xad,0xad};
+
+    uint32 *tkey = (uint32 *)key;
+    uint32 *tplain = (uint32 *)plain;
+
+    if ( plain_len<1 )
+    {
+        return NULL;
+    }
+
+    uint32 pre_plain[2] = {0,0};
+    uint32 pre_crypt[2] = {0,0};
+    uint32 p_buf[2] = {0};
+    uint32 c_buf[2] = {0};
+
+    int padLength = 0;
+    int i = 0;
+
+    /* padding data */
+    padLength = (plain_len+10)%8;
+    padLength = padLength ? 8 - padLength : 0;
+
+    int length = padLength+3+plain_len+7;
+    *crypt_len = length;
+
+    int *tcrypt = (int*)emalloc(length/4);
+
+    *((unsigned char*)tcrypt) = 0xa8 | (unsigned char)padLength;
+    memcpy ( (byte*)tcrypt+1, (byte*)pad, padLength+2);
+    memcpy ( (byte*)tcrypt+padLength+3, (byte*)tplain, plain_len);
+    memset ( (byte*)tcrypt+padLength+3+plain_len, 0, 7);
+
+    for (i = 0; i < length/4; i+=2) {
+        p_buf[0] = *(tcrypt+i) ^ pre_crypt[0];
+        p_buf[1] = *(tcrypt+i+1) ^ pre_crypt[1];
+        tinyEncrypt( p_buf, tkey, c_buf, 4);
+        *(tcrypt+i) = c_buf[0] ^ pre_plain[0];
+        *(tcrypt+i+1) = c_buf[1] ^ pre_plain[1];
+        memcpy(pre_crypt, tcrypt+i, 8);
+        memcpy(pre_plain, p_buf, 8);
+    }
+
+    return tcrypt;
+
+}
+
+
+
+ZEND_BEGIN_ARG_INFO_EX(ht_xxtea_encrypt_arginfo, 0, 0, 2)
+    ZEND_ARG_INFO(0, data)
+    ZEND_ARG_INFO(0, key)
+ZEND_END_ARG_INFO()
+
+
+ZEND_BEGIN_ARG_INFO_EX(ht_xxtea_decrypt_arginfo, 0, 0, 2)
+    ZEND_ARG_INFO(0, data)
+    ZEND_ARG_INFO(0, key)
+ZEND_END_ARG_INFO()
+
+
 ZEND_BEGIN_ARG_INFO_EX(xxtea_encrypt_arginfo, 0, 0, 2)
     ZEND_ARG_INFO(0, data)
     ZEND_ARG_INFO(0, key)
@@ -247,6 +434,8 @@ ZEND_END_ARG_INFO()
 
 /* compiled function list so Zend knows what's in this module */
 zend_function_entry xxtea_functions[] = {
+    ZEND_FE(ht_xxtea_encrypt, ht_xxtea_encrypt_arginfo)
+    ZEND_FE(ht_xxtea_decrypt, ht_xxtea_decrypt_arginfo)
     ZEND_FE(xxtea_encrypt, xxtea_encrypt_arginfo)
     ZEND_FE(xxtea_decrypt, xxtea_decrypt_arginfo)
     ZEND_FE(xxtea_info, xxtea_info_arginfo)
@@ -272,9 +461,11 @@ zend_module_entry xxtea_module_entry = {
 ZEND_GET_MODULE(xxtea)
 #endif
 
-/* {{{ proto string xxtea_encrypt(string data, string key)
+
+
+/* {{{ proto string ht_xxtea_encrypt(string data, string key)
    Encrypt string using XXTEA algorithm */
-ZEND_FUNCTION(xxtea_encrypt) {
+ZEND_FUNCTION(ht_xxtea_encrypt) {
     char *data, *key;
     char *result;
     length_t data_len, key_len;
@@ -295,6 +486,41 @@ ZEND_FUNCTION(xxtea_encrypt) {
     else if (key_len >= 16) {
         memcpy(fixed_key, key, 16);
     }
+    /*
+      char * xTEAEncryptWithKey(const char *plain, uint32 plain_len, const unsigned char key[16], uint32 * crypt_len )
+    */
+    result = (char *)xTEAEncryptWithKey((const uint8_t *)data, (uint32)data_len, fixed_key, &ret_length);
+    if (result == NULL) {
+        RETURN_FALSE;
+    }
+    __RETURN_STRINGL(result, ret_length);
+}
+
+
+/* {{{ proto string xxtea_encrypt(string data, string key)
+   Encrypt string using XXTEA algorithm */
+ZEND_FUNCTION(xxtea_encrypt) {
+    char *data, *key;
+    char *result;
+    length_t data_len, key_len;
+    size_t i, ret_length;
+    uint8_t fixed_key[16];
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &data, &data_len, &key, &key_len) == FAILURE) {
+        return;
+    }
+
+    if (data_len == 0) {
+        RETURN_EMPTY_STRING();
+    }
+
+    if (key_len < 16) {
+        memcpy(fixed_key, key, key_len);
+        for (i = key_len; i < 16; ++i) fixed_key[i] = 0;
+    }
+    else if (key_len >= 16) {
+        memcpy(fixed_key, key, 16);
+    }
 
     result = (char *)xxtea_ubyte_encrypt((const uint8_t *)data, (size_t)data_len, fixed_key, &ret_length);
     if (result == NULL) {
@@ -304,6 +530,40 @@ ZEND_FUNCTION(xxtea_encrypt) {
 }
 /* }}} */
 
+/* {{{ proto string ht_xxtea_decrypt(string data, string key)
+   Decrypt string using XXTEA algorithm */
+ZEND_FUNCTION(ht_xxtea_decrypt) {
+    char *data, *key;
+    char *result;
+    length_t data_len, key_len;
+    size_t i, ret_length;
+    uint8_t fixed_key[16];
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &data, &data_len, &key, &key_len) == FAILURE) {
+        return;
+    }
+    if (data_len == 0) {
+        RETURN_EMPTY_STRING();
+    }
+    if (key_len < 16) {
+        memcpy(fixed_key, key, key_len);
+        for (i = key_len; i < 16; ++i) fixed_key[i] = 0;
+    }
+    else if (key_len >= 16) {
+        memcpy(fixed_key, key, 16);
+    }
+    /*
+
+    char * xTEADecryptWithKey(const char *crypt, uint32 crypt_len, const unsigned char key[16], uint32 * plain_len)
+
+    */
+    result = (char *)xTEADecryptWithKey((const uint8_t *)data, (size_t)data_len, fixed_key, &ret_length);
+    if (result == NULL) {
+        RETURN_FALSE;
+    }
+    __RETURN_STRINGL(result, ret_length);
+}
+/* }}} */
 
 /* {{{ proto string xxtea_decrypt(string data, string key)
    Decrypt string using XXTEA algorithm */
@@ -338,6 +598,8 @@ ZEND_FUNCTION(xxtea_decrypt) {
 zend_class_entry *xxtea_ce;
 
 static zend_function_entry xxtea_method[] = {
+    ZEND_ME_MAPPING(encrypt, ht_xxtea_encrypt, ht_xxtea_encrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
+    ZEND_ME_MAPPING(decrypt, ht_xxtea_decrypt, ht_xxtea_decrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
     ZEND_ME_MAPPING(encrypt, xxtea_encrypt, xxtea_encrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
     ZEND_ME_MAPPING(decrypt, xxtea_decrypt, xxtea_decrypt_arginfo, ZEND_ACC_STATIC | ZEND_ACC_PUBLIC)
     ZEND_FE_END
